@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Sparkles } from 'lucide-react'
+import Link from 'next/link'
 
 export default function AnnouncementBar() {
   const [isVisible, setIsVisible] = useState(true)
@@ -10,8 +11,15 @@ export default function AnnouncementBar() {
 
   return (
     <div className="relative bg-foreground text-primary-foreground">
-      <div className="container-custom flex items-center justify-center py-2.5 text-sm tracking-wide">
-        <p>Free shipping on orders over $75 — Shop the new collection</p>
+      <div className="container-custom flex items-center justify-center gap-2 py-2.5 text-xs tracking-[0.15em] uppercase">
+        <Sparkles className="h-3 w-3 flex-shrink-0" />
+        <p>
+          Free shipping on orders over Rs. 3,000 &nbsp;·&nbsp;{' '}
+          <Link href="/products" className="underline underline-offset-2 hover:opacity-80 transition-opacity">
+            Shop New Arrivals
+          </Link>
+        </p>
+        <Sparkles className="h-3 w-3 flex-shrink-0" />
         <button
           onClick={() => setIsVisible(false)}
           className="absolute right-4 p-1 hover:opacity-70 transition-opacity"

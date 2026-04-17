@@ -1,6 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Lato, Inter } from 'next/font/google'
+import { Cormorant_Garamond, Jost } from 'next/font/google'
 import { Providers } from './providers'
 import Header from '@/components/layout/header'
 import Footer from '@/components/layout/footer'
@@ -14,26 +14,26 @@ import dynamic from 'next/dynamic'
 
 const CookieConsent = dynamic(() => import('@/components/cookie-consent'))
 
-const heading = Lato({
+const heading = Cormorant_Garamond({
   subsets: ['latin'],
-  weight: ['400', '700'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-heading',
   display: 'swap',
 })
 
-const body = Inter({
+const body = Jost({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
+  weight: ['300', '400', '500', '600'],
   variable: '--font-body',
   display: 'swap',
 })
 
 export const metadata: Metadata = {
   title: {
-    default: 'Store — Modern Commerce',
-    template: '%s | Store',
+    default: 'Lumière Beauty — Prestige Makeup',
+    template: '%s | Lumière Beauty',
   },
-  description: 'Discover curated products crafted with care. A modern ecommerce experience.',
+  description: 'Prestige makeup crafted for every complexion. Shop luxury cosmetics designed to illuminate, define, and celebrate your beauty.',
 }
 
 export default function RootLayout({

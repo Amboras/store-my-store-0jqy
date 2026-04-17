@@ -1,16 +1,24 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-export const revalidate = 3600 // ISR: revalidate every hour
+export const revalidate = 3600
 import { medusaServerClient } from '@/lib/medusa-client'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Truck, RotateCcw, Shield, ChevronRight } from 'lucide-react'
+import { ChevronRight, Lock } from 'lucide-react'
 import ProductActions from '@/components/product/product-actions'
 import ProductAccordion from '@/components/product/product-accordion'
 import { ProductViewTracker } from '@/components/product/product-view-tracker'
+import ProductBundleOffer from '@/components/product/product-bundle-offer'
+import ProductUrgency from '@/components/product/product-urgency'
 import { getProductPlaceholder } from '@/lib/utils/placeholder-images'
 import { type VariantExtension } from '@/components/product/product-price'
+
+// Bundle config: map a product handle → its bundle product handle
+const BUNDLE_MAP: Record<string, string> = {
+  'velvet-matte-liquid-lipstick': 'velvet-matte-lip-set-3-shades',
+  'precision-kohl-eyeliner': 'eye-artistry-duo-set',
+}
 
 async function getProduct(handle: string) {
   try {
@@ -74,10 +82,10 @@ export async function generateMetadata({
 
   return {
     title: product.title,
-    description: product.description || `Shop ${product.title}`,
+    description: product.description || `Shop ${product.title} at Lumière Beauty`,
     openGraph: {
       title: product.title,
-      description: product.description || `Shop ${product.title}`,
+      description: product.description || `Shop ${product.title} at Lumière Beauty`,
       ...(product.thumbnail ? { images: [{ url: product.thumbnail }] } : {}),
     },
   }
@@ -97,15 +105,42 @@ export default async function ProductPage({
 
   const variantExtensions = await getVariantExtensions(product.id)
 
+  // Load bundle product if mapped
+  const bundleHandle = BUNDLE_MAP[handle]
+  const bundleProduct = bundleHandle ? await getProduct(bundleHandle) : null
+  const bundleVariant = bundleProduct?.variants?.[0]
+  const bundleVariantExt = bundleVariant?.id ? await getVariantExtensions(bundleProduct!.id) : {}
+
+  const primaryVariant = product.variants?.[0]
+  const primaryVariantExt = primaryVariant?.id ? variantExtensions[primaryVariant.id] : null
+
+  const cp = primaryVariant?.calculated_price
+  const singlePrice: number =
+    cp && typeof cp !== 'number' && typeof cp.calculated_amount === 'number'
+      ? cp.calculated_amount
+      : 0
+  const bundleCp = bundleVariant?.calculated_price
+  const bundlePrice: number =
+    bundleCp && typeof bundleCp !== 'number' && typeof bundleCp.calculated_amount === 'number'
+      ? bundleCp.calculated_amount
+      : 0
+
+  const bundleSaving = singlePrice > 0 && bundlePrice > 0 ? Math.max(0, singlePrice * 3 - bundlePrice) : 0
+
   const allImages = [
     ...(product.thumbnail ? [{ url: product.thumbnail }] : []),
-    ...(product.images || []).filter((img: any) => img.url !== product.thumbnail),
+    ...(product.images || []).filter((img: { url: string }) => img.url !== product.thumbnail),
   ]
 
-  // Use placeholder if no images
   const displayImages = allImages.length > 0
     ? allImages
     : [{ url: getProductPlaceholder(product.id) }]
+
+  const inventoryQuantity = primaryVariant?.id
+    ? variantExtensions[primaryVariant.id]?.inventory_quantity
+    : null
+
+  const showBundle = !!bundleVariant?.id && bundlePrice > 0 && singlePrice > 0
 
   return (
     <>
@@ -124,9 +159,10 @@ export default async function ProductPage({
 
       <div className="container-custom py-8 lg:py-12">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
-          {/* Product Images */}
+
+          {/* ── Product Images ── */}
           <div className="space-y-3">
-            <div className="relative aspect-[3/4] overflow-hidden bg-muted rounded-sm">
+            <div className="relative aspect-[3/4] overflow-hidden bg-muted">
               <Image
                 src={displayImages[0].url}
                 alt={product.title}
@@ -136,14 +172,10 @@ export default async function ProductPage({
                 className="object-cover"
               />
             </div>
-
             {displayImages.length > 1 && (
               <div className="grid grid-cols-4 gap-3">
-                {displayImages.slice(1, 5).map((image: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="relative aspect-[3/4] overflow-hidden bg-muted rounded-sm"
-                  >
+                {displayImages.slice(1, 5).map((image: { url: string }, idx: number) => (
+                  <div key={idx} className="relative aspect-[3/4] overflow-hidden bg-muted">
                     <Image
                       src={image.url}
                       alt={`${product.title} ${idx + 2}`}
@@ -157,46 +189,59 @@ export default async function ProductPage({
             )}
           </div>
 
-          {/* Product Info */}
-          <div className="lg:sticky lg:top-24 lg:self-start space-y-6">
-            {/* Title & Subtitle */}
+          {/* ── Product Info ── */}
+          <div className="lg:sticky lg:top-24 lg:self-start space-y-5">
+
+            {/* Brand + Title */}
             <div>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-accent font-medium mb-1.5">
+                Lumière Beauty
+              </p>
               {product.subtitle && (
-                <p className="text-sm uppercase tracking-[0.15em] text-muted-foreground mb-2">
+                <p className="text-sm uppercase tracking-[0.15em] text-muted-foreground mb-1">
                   {product.subtitle}
                 </p>
               )}
-              <h1 className="text-h2 font-heading font-semibold">{product.title}</h1>
+              <h1 className="font-heading text-h2 font-medium leading-snug">{product.title}</h1>
             </div>
 
             <ProductViewTracker
               productId={product.id}
               productTitle={product.title}
-              variantId={product.variants?.[0]?.id || null}
-              currency={product.variants?.[0]?.calculated_price?.currency_code || 'usd'}
-              value={product.variants?.[0]?.calculated_price?.calculated_amount ?? null}
+              variantId={primaryVariant?.id || null}
+              currency={cp && typeof cp !== 'number' ? (cp.currency_code || 'pkr') : 'pkr'}
+              value={singlePrice}
             />
 
-            {/* Variant Selector + Price + Add to Cart (client component) */}
+            {/* Urgency signals */}
+            <ProductUrgency
+              inventoryQuantity={inventoryQuantity}
+              lowStockThreshold={15}
+            />
+
+            {/* Variant Selector + Price */}
             <ProductActions product={product} variantExtensions={variantExtensions} />
 
-            {/* Trust Signals */}
-            <div className="grid grid-cols-3 gap-4 py-6 border-t">
-              <div className="text-center">
-                <Truck className="h-5 w-5 mx-auto mb-1.5" strokeWidth={1.5} />
-                <p className="text-xs text-muted-foreground">Free Shipping</p>
-              </div>
-              <div className="text-center">
-                <RotateCcw className="h-5 w-5 mx-auto mb-1.5" strokeWidth={1.5} />
-                <p className="text-xs text-muted-foreground">30-Day Returns</p>
-              </div>
-              <div className="text-center">
-                <Shield className="h-5 w-5 mx-auto mb-1.5" strokeWidth={1.5} />
-                <p className="text-xs text-muted-foreground">Secure Checkout</p>
-              </div>
+            {/* Bundle Offer (only when mapped) */}
+            {showBundle && (
+              <ProductBundleOffer
+                singleVariantId={primaryVariant!.id}
+                singlePrice={singlePrice}
+                bundleVariantId={bundleVariant!.id}
+                bundlePrice={bundlePrice}
+                bundleLabel={bundleProduct!.title}
+                bundleSaving={bundleSaving}
+                currency={cp && typeof cp !== 'number' ? (cp.currency_code || 'pkr') : 'pkr'}
+              />
+            )}
+
+            {/* Secure Checkout Strip */}
+            <div className="flex items-center justify-center gap-2 py-2.5 border border-border bg-muted/30 text-xs text-muted-foreground">
+              <Lock className="h-3 w-3" strokeWidth={1.5} />
+              <span>Secure &amp; encrypted checkout — 100% safe</span>
             </div>
 
-            {/* Accordion Sections */}
+            {/* Accordion */}
             <ProductAccordion
               description={product.description}
               details={product.metadata as Record<string, string> | undefined}
